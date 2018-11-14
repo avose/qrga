@@ -440,35 +440,48 @@ def ga_search(args,target,mask,founder,data,gui):
 ############################################################
 
 
+def eval_intensity(target,mask,image,lth,uth):
+    mtarget = target * mask
+    mabove = numpy.select( [mtarget > uth], [ 1.0 ] )
+    mbelow = numpy.select( [mtarget < lth], [ 1.0 ] ) * mask
+    cimage = numpy.clip(image, lth, 1.0)*mabove + image*(1.0-mabove)*mask + image*(1.0-mask)
+    cimage = numpy.clip(cimage,0.0, uth)*mbelow + image*(1.0-mbelow)*mask + image*(1.0-mask)
+    err = qr_diff(target,mask,cimage)
+    return (err, cimage)
+
+
+########################################
+
+
 def intensity_search(args,target,mask,image,data,gui):
-    #return image
     print("Start intensity search")
+    if gui:
+        gui.update(text="Intensity Search")
     merr = WORST_ERROR
     ml = 0
     mu = 0
     min_img = image
+    thresholds = []
     for l in range(0,256):
-        lth = float(l) / 255.0
-        print("l: %d"%l)
         for u in range(l+1,256):
+            lth = float(l) / 255.0
             uth = float(u) / 255.0
-            mtarget = target * mask
-            mabove = numpy.select( [mtarget > uth], [ 1.0 ] )
-            mbelow = numpy.select( [mtarget < lth], [ 1.0 ] ) * mask
-            cimage = numpy.clip(image, lth, 1.0)*mabove + image*(1.0-mabove)*mask + image*(1.0-mask)
-            cimage = numpy.clip(cimage,0.0, uth)*mbelow + image*(1.0-mbelow)*mask + image*(1.0-mask)
-            err = qr_diff(target,mask,cimage)
-            if err < merr:
-                if qr_validate(data,img=cimage,qr_size=args.qrver) is not None:
-                    merr = err
-                    ml = l
-                    mu = u
-                    min_img = numpy.copy(cimage)
-                    msg =  "err: %f\n"%merr
-                    msg += "@(%d,%d)"%(l,u)
-                    print(msg)
-                    if gui:
-                        gui.update(data=min_img,text=msg)
+            thresholds.append( (lth,uth) )
+    errs = [ dask.delayed(eval_intensity)(target,mask,image,t[0],t[1]) for t in thresholds ]
+    with ProgressBar(dt=0.5):
+        errs = dask.compute(*errs, scheduler='threads')
+    for err, img in errs:
+        if err < merr:
+            if qr_validate(data,img=img,qr_size=args.qrver) is not None:
+                merr = err
+                ml = l
+                mu = u
+                min_img = numpy.copy(img)
+                msg =  "err: %f\n"%merr
+                msg += "@(%d,%d)"%(l,u)
+                print(msg)
+                if gui:
+                    gui.update(data=min_img,text=msg)
     print("  min err: %f  (@ %d %d)"%(merr,ml,mu))
     print("")
     return min_img
