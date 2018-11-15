@@ -441,22 +441,35 @@ def ga_search(args,target,mask,founder,data,gui):
 
 
 def eval_intensity(target,mask,image,lth,uth):
+    l = float(lth) / 255.0
+    u = float(uth) / 255.0
     mtarget = target * mask
-    mabove = numpy.select( [mtarget > uth], [ 1.0 ] )
-    mbelow = numpy.select( [mtarget < lth], [ 1.0 ] ) * mask
-    cimage = numpy.clip(image, lth, 1.0)*mabove + image*(1.0-mabove)*mask + image*(1.0-mask)
-    cimage = numpy.clip(cimage,0.0, uth)*mbelow + image*(1.0-mbelow)*mask + image*(1.0-mask)
+    mabove = numpy.select( [mtarget > u], [ 1.0 ] )
+    mbelow = numpy.select( [mtarget < l], [ 1.0 ] ) * mask
+    cimage = numpy.clip(image, l, 1.0)*mabove + image*(1.0-mabove)*mask + image*(1.0-mask)
+    cimage = numpy.clip(cimage,0.0, u)*mbelow + image*(1.0-mbelow)*mask + image*(1.0-mask)
     err = qr_diff(target,mask,cimage)
-    return (err, cimage)
+    return (err, cimage, lth, uth)
 
 
 ########################################
 
 
+def batch(l, n):
+    for i in range(0, len(l), n):
+        yield l[i:i+n]
+
+
+########################################
+
+        
 def intensity_search(args,target,mask,image,data,gui):
     print("Start intensity search")
     if gui:
         gui.update(text="Intensity Search")
+    #
+    # Search lower ("black") + upper ("white") bounds without overlap
+    #
     merr = WORST_ERROR
     ml = 0
     mu = 0
@@ -464,26 +477,46 @@ def intensity_search(args,target,mask,image,data,gui):
     thresholds = []
     for l in range(0,256):
         for u in range(l+1,256):
-            lth = float(l) / 255.0
-            uth = float(u) / 255.0
-            thresholds.append( (lth,uth) )
-    errs = [ dask.delayed(eval_intensity)(target,mask,image,t[0],t[1]) for t in thresholds ]
-    with ProgressBar(dt=0.5):
-        errs = dask.compute(*errs, scheduler='threads')
-    for err, img in errs:
-        if err < merr:
-            if qr_validate(data,img=img,qr_size=args.qrver) is not None:
-                merr = err
-                ml = l
-                mu = u
-                min_img = numpy.copy(img)
-                msg =  "err: %f\n"%merr
-                msg += "@(%d,%d)"%(l,u)
-                print(msg)
-                if gui:
-                    gui.update(data=min_img,text=msg)
+            thresholds.append( (l,u) )
+    thresholds = numpy.random.permutation(thresholds)
+    #
+    # Process in chunks
+    #
+    chunks = list(batch(thresholds, 1000))
+    for c, chunk in enumerate(chunks):
+        #
+        # Eval chunk and look for new minimum error
+        #
+        errs = [ dask.delayed(eval_intensity)(target,mask,image,t[0],t[1]) for t in chunk ]
+        with ProgressBar(dt=0.5):
+            errs = dask.compute(*errs, scheduler='threads')
+        for err, img, l, u in errs:
+            if err < merr:
+                if qr_validate(data,img=img,qr_size=args.qrver) is not None:
+                    merr = err
+                    ml = l
+                    mu = u
+                    min_img = numpy.copy(img)
+        #
+        # Progress print / update after each chunk is done
+        #
+        print("  Intensity Search: chunk %d of %d"%(c,len(chunks)))
+        print("    min err: %f  (@ %d %d)"%(merr,ml,mu))
+        if gui:
+            pct = (float(c+1)*100.0) / float(len(chunks))
+            msg =  "Intensity Search (%.1f%s)\n\n"%(pct,"%")
+            msg += "Error: %f\n"%merr
+            msg += "Lower: %d\nUpper: %d"%(ml,mu)
+            gui.update(data=min_img,text=msg)
+    #
+    # Intensity search is done
+    #
+    print("  Intensity Search: done.")
     print("  min err: %f  (@ %d %d)"%(merr,ml,mu))
     print("")
+    #
+    # Return best found
+    #
     return min_img
 
 
