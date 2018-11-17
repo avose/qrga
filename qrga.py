@@ -38,7 +38,7 @@ from PIL import Image, ImageTk
 ############################################################
 
 
-QRGA_VERSION   = "0.6"
+QRGA_VERSION   = "0.7"
 QRGA_COPYRIGHT = "Copyright (C) 2018 Aaron Vose"
 
 
@@ -723,6 +723,7 @@ def qrga_init(args):
     print("  Mutation:    %f  (%.1f px)"%(args.mu,(current.shape[0]*current.shape[1])*args.mu))
     print("  Selection:   %f  (top %.1f)"%(args.sigma,args.popsz*args.sigma))
     print("  Validations: %d  (distort:%s)"%(args.validate if args.validate else 1, str(args.validate > 0)))
+    print("  Crossover:   %s"%(str(args.crossover)))
     print("")
     #
     # Generate a best-case image
