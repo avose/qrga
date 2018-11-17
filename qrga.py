@@ -215,12 +215,13 @@ def qr_validate(in_data=None,img=None,fn=None,rm=True,distort=False,qr_size=10):
 ############################################################
 
 
-def eval_nonce(nonce,data,target,mask,qr_size):
+def eval_nonce(data,target,mask,qr_size):
     #
     # Encode with nonce / padding
     #
     rnd = numpy.random.randint(2**30)
     tf = "qrga_tmp_%d.png"%rnd
+    nonce = rnd
     padding = "?nonce=0x%X"%nonce
     in_data = data + padding
     current = qr_encode(in_data,outf=tf,qr_size=qr_size)
@@ -253,15 +254,13 @@ def nonce_search(args,target,mask,gui):
         #
         tstart = time.time()
         print("  Nonce search chunk %d/%d (%.1f%s):"%(i,nbatch,(i/float(nbatch))*100,"%"))
-        results = [ dask.delayed(eval_nonce)(i*batchsz+j, args.data, target, mask, args.qrver) for j in range(0,batchsz) ]
+        results = [ dask.delayed(eval_nonce)(args.data, target, mask, args.qrver) for j in range(0,batchsz) ]
         with ProgressBar(dt=UPDATE_DELAY):
             results = dask.compute(*results, scheduler='threads')
         #
         # Process batch results
         #
-        for result in results:
-            in_data = result[0]
-            err = result[1]
+        for in_data, err in results:
             if err < WORST_ERROR:
                 sum_err += err
                 max_err = err if err > max_err else max_err
@@ -757,11 +756,11 @@ def parse_args():
     parser.add_argument('--data',      default=None,   type=str,   help='data payload string (URL)')
     parser.add_argument('--resume',    default=None,   type=str,   help='resume GA with founder')
     parser.add_argument('--qrver',     default=10,     type=int,   help='QR code version (size)')
-    parser.add_argument('--nsearch',   default=10000,  type=int,   help='nonce search iterations')    
+    parser.add_argument('--nsearch',   default=20000,  type=int,   help='nonce search iterations')    
     parser.add_argument('--crossover', default=True,   type=bool,  help='crossover flag for GA')
     parser.add_argument('--sigma',     default=0.1,    type=float, help='selection strength')
-    parser.add_argument('--mu',        default=0.0015, type=float, help='mutation rate')
-    parser.add_argument('--gens',      default=10000,  type=int,   help='generations')
+    parser.add_argument('--mu',        default=0.01,   type=float, help='mutation rate')
+    parser.add_argument('--gens',      default=100000, type=int,   help='generations')
     parser.add_argument('--popsz',     default=100,    type=int,   help='population size')
     parser.add_argument('--validate',  default=3,      type=int,   help='QR validations per ind')
     args = parser.parse_args()
