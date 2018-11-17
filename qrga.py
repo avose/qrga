@@ -787,7 +787,8 @@ def main():
     #
     if args.resume:
         image = read_image(args.resume)
-    best = target*mask + (image*(1.0-mask))
+    base = qr_encode(min_dat,qr_size=args.qrver)
+    best = target*mask + (base*(1.0-mask))
     write_image(best,"%s_best.png"%(os.path.splitext(args.target)[0]))
     if gui:
         gui.update(best=best)
