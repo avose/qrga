@@ -408,12 +408,12 @@ def ga_search(args,target,mask,founder,data,gui):
                         # 10%: Set to QR code's pixel
                         #
                         ind[x][y] = first[x][y]
-                    else if mu_mode < 7:
+                    elif mu_mode < 7:
                         #
                         # 60%: Set to target image's pixel
                         #
                         ind[x][y] = target[x][y]
-                    else if mu_mode < 9:
+                    elif mu_mode < 9:
                         #
                         # 20%: Invert pixel
                         #
