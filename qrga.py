@@ -380,35 +380,42 @@ def ga_search(args,target,mask,founder,data,gui):
             write_image(delta,"%s_err.png"%(os.path.splitext(args.target)[0]))
         population = population[0:int(args.popsz*args.sigma)]
         #
-        # Reproduction with mutation
+        # Reproduction
         #
         opop = len(population)
         while len(population) < args.popsz:
             i = numpy.random.randint(0,opop)
-            #j = numpy.random.randint(0,opop)
-            #indj = numpy.copy( population[j] )
             ind = numpy.copy( population[i] )
-            #mask = numpy.ones_like(ind)
-            #mask[:int(mask.shape[0]/2)] = 0.0
-            #ind = numpy.copy( ind*mask + indj*(1.0-mask) )
+            #
+            # Crossover
+            #
+            if args.crossover:
+                j = numpy.random.randint(0,opop)
+                indj = numpy.copy( population[j] )
+                cmask = numpy.ones_like(ind)
+                cmask[:int(cmask.shape[0]/2)] = 0.0
+                ind = numpy.copy( ind*cmask + indj*(1.0-cmask) )
+            #
+            # Mutation
+            #
             for j in range(0,int(ind.shape[0]*ind.shape[1]*args.mu)):
                 x = numpy.random.randint(0,ind.shape[0])
                 y = numpy.random.randint(0,ind.shape[1])
-                if mask[x][y]:
+                if numpy.random.uniform() < mask[x][y]:
                     mu_mode = numpy.random.randint(0,10)
                     if mu_mode < 1:
                         #
                         # 10%: Set to QR code's pixel
                         #
                         ind[x][y] = first[x][y]
-                    if mu_mode < 6:
+                    if mu_mode < 7:
                         #
-                        # 50%: Set to target image's pixel
+                        # 60%: Set to target image's pixel
                         #
                         ind[x][y] = target[x][y]
                     if mu_mode < 9:
                         #
-                        # 30%: Invert pixel
+                        # 20%: Invert pixel
                         #
                         ind[x][y] = 1.0 - ind[x][y]
                     else:
@@ -737,23 +744,25 @@ def qrga_init(args):
 
 def parse_args():
     parser = argparse.ArgumentParser(description='QRGA'+' v'+QRGA_VERSION+' '+QRGA_COPYRIGHT)
-    parser.add_argument('--verbose', action='store_true',        help='verbose flag')
-    parser.add_argument('--save',    action='store_true',        help='save intermidiates')
-    parser.add_argument('--version', action='store_true',        help='print version and exit')
-    parser.add_argument('--info',    action='store_true',        help='print info and exit')
-    parser.add_argument('--gui',     action='store_true',        help='enable GUI')
-    parser.add_argument('--output',  default=None,   type=str,   help='output result image path')
-    parser.add_argument('--target',  default=None,   type=str,   help='desired target image path')
-    parser.add_argument('--mask',    default=None,   type=str,   help='target mask image path')
-    parser.add_argument('--data',    default=None,   type=str,   help='data payload string (URL)')
-    parser.add_argument('--resume',  default=None,   type=str,   help='resume GA with founder')
-    parser.add_argument('--qrver',   default=10,     type=int,   help='QR code version (size)')
-    parser.add_argument('--nsearch', default=10000,  type=int,   help='nonce search iterations')    
-    parser.add_argument('--sigma',   default=0.1,    type=float, help='selection strength')
-    parser.add_argument('--mu',      default=0.0015, type=float, help='mutation rate')
-    parser.add_argument('--gens',    default=10000,  type=int,   help='generations')
-    parser.add_argument('--popsz',   default=100,    type=int,   help='population size')
-    parser.add_argument('--validate',default=3,      type=int,   help='QR validations per ind')
+    parser.add_argument('--verbose',   action='store_true',        help='verbose flag')
+    parser.add_argument('--save',      action='store_true',        help='save intermidiates')
+    parser.add_argument('--version',   action='store_true',        help='print version and exit')
+    parser.add_argument('--info',      action='store_true',        help='print info and exit')
+    parser.add_argument('--gui',       action='store_true',        help='enable GUI')
+    parser.add_argument('--isearch',   default=True,   type=bool,  help='intensity search flag')
+    parser.add_argument('--output',    default=None,   type=str,   help='output result image path')
+    parser.add_argument('--target',    default=None,   type=str,   help='desired target image path')
+    parser.add_argument('--mask',      default=None,   type=str,   help='target mask image path')
+    parser.add_argument('--data',      default=None,   type=str,   help='data payload string (URL)')
+    parser.add_argument('--resume',    default=None,   type=str,   help='resume GA with founder')
+    parser.add_argument('--qrver',     default=10,     type=int,   help='QR code version (size)')
+    parser.add_argument('--nsearch',   default=10000,  type=int,   help='nonce search iterations')    
+    parser.add_argument('--crossover', default=True,   type=bool,  help='crossover flag for GA')
+    parser.add_argument('--sigma',     default=0.1,    type=float, help='selection strength')
+    parser.add_argument('--mu',        default=0.0015, type=float, help='mutation rate')
+    parser.add_argument('--gens',      default=10000,  type=int,   help='generations')
+    parser.add_argument('--popsz',     default=100,    type=int,   help='population size')
+    parser.add_argument('--validate',  default=3,      type=int,   help='QR validations per ind')
     args = parser.parse_args()
     return args
 
@@ -780,7 +789,7 @@ def main():
     #
     # Pass 2: intensity search
     #
-    if not args.resume:
+    if args.isearch and not args.resume:
         image = intensity_search(args,target,mask,image,min_dat,gui)
     #
     # Pass 3: genetic algorithm
