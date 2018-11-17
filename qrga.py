@@ -434,6 +434,9 @@ def ga_search(args,target,mask,founder,data,gui):
             msg += "PopSize:  %d\n"%len(population)
             msg += "Viable:  %d\n"%viable
             msg += "Fit:  %.2f  %.2f%s\n"%(fits[0],pct,"%")
+            avg = sum(fits) / len(fits)
+            apct = 100.0 * (avg / numpy.sum(mask))
+            msg += "Avg:  %.2f  %.2f%s\n"%(avg,apct,"%")
             msg += "Time:  %.2f s\n\n"%(tend-tstart)
             gui.update(data=best,text=msg)
     #
