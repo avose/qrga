@@ -86,15 +86,15 @@ def write_distorted_image(img,outf="qrga_tmp.png"):
     #
     # Increase resolution to help with aliasing later
     #
-    w = big.shape[0]*5
-    h = big.shape[1]*5
+    w = big.shape[0]*4
+    h = big.shape[1]*4
     big = transform.resize(big, (w,h), anti_aliasing=False, mode='constant')
     #
     # Apply transform(s)
     #
     magnitude = 0.1 + numpy.random.uniform()*0.1
     afine_tf = transform.AffineTransform(shear=magnitude)
-    magnitude = -20.0 + 40.0*numpy.random.uniform()
+    magnitude = -15.0 + 30.0*numpy.random.uniform()
     big = transform.rotate(big, magnitude, mode='constant', cval=1.0, resize=True)
     big = transform.warp(big, inverse_map=afine_tf, mode='constant', cval=1.0)
     #
@@ -407,31 +407,20 @@ def ga_search(args,target,mask,founder,data,gui):
             #
             # Mutation
             #
-            for j in range(0,int(ind.shape[0]*ind.shape[1]*args.mu)):
-                x = numpy.random.randint(0,ind.shape[0])
-                y = numpy.random.randint(0,ind.shape[1])
-                if numpy.random.uniform() < mask[x][y]:
-                    mu_mode = numpy.random.randint(0,10)
-                    if mu_mode < 1:
-                        #
-                        # 10%: Set to QR code's pixel
-                        #
-                        ind[x][y] = first[x][y]
-                    elif mu_mode < 7:
-                        #
-                        # 60%: Set to target image's pixel
-                        #
-                        ind[x][y] = target[x][y]
-                    elif mu_mode < 9:
-                        #
-                        # 20%: Invert pixel
-                        #
-                        ind[x][y] = 1.0 - ind[x][y]
-                    else:
-                        #
-                        # 10%: Random pixel value
-                        #
-                        ind[x][y] = numpy.random.uniform()
+            mus = numpy.random.rand(ind.shape[0],ind.shape[1])
+            mumask = numpy.select( [mus < args.mu], [ 1.0 ] )
+            mumask = numpy.select( [mask > 0.0], [ 1.0 ] ) * mumask
+            if viable < args.popsz/2.0:
+                mus = 0.0
+            else:
+                mus = numpy.random.rand(ind.shape[0],ind.shape[1])
+                mus = numpy.select( [mus < 0.5], [ 1.0 ] )
+            deltat = target-ind
+            deltat = numpy.clip(deltat,-0.2,0.2)
+            deltaf = first-ind
+            deltaf = numpy.clip(deltaf,-0.2,0.2)
+            ind = mumask*(mus*(ind+deltat) + (1.0-mus)*(ind+deltaf)) + (1.0-mumask)*ind
+            ind = numpy.clip(ind,0.0,1.0)
             population.append( ind )
         #
         # End of generation timing and print.
@@ -453,91 +442,6 @@ def ga_search(args,target,mask,founder,data,gui):
     # Return best found
     #
     return best
-
-
-############################################################
-############################################################
-
-
-def eval_intensity(target,mask,image,lth,uth):
-    l = float(lth) / 255.0
-    u = float(uth) / 255.0
-    mtarget = target * mask
-    mabove = numpy.select( [mtarget > u], [ 1.0 ] )
-    mbelow = numpy.select( [mtarget < l], [ 1.0 ] ) * mask
-    cimage = numpy.clip(image, l, 1.0)*mabove + image*(1.0-mabove)*mask + image*(1.0-mask)
-    cimage = numpy.clip(cimage,0.0, u)*mbelow + image*(1.0-mbelow)*mask + image*(1.0-mask)
-    err = qr_diff(target,mask,cimage)
-    return (err, cimage, lth, uth)
-
-
-########################################
-
-
-def batch(l, n):
-    for i in range(0, len(l), n):
-        yield l[i:i+n]
-
-
-########################################
-
-        
-def intensity_search(args,target,mask,image,data,gui):
-    print("Start intensity search")
-    if gui:
-        gui.update(text="Intensity Search")
-    #
-    # Search lower ("black") + upper ("white") bounds without overlap
-    #
-    merr = WORST_ERROR
-    ml = 0
-    mu = 0
-    min_img = image
-    thresholds = []
-    for l in range(0,256):
-        for u in range(l+1,256):
-            thresholds.append( (l,u) )
-    thresholds = numpy.random.permutation(thresholds)
-    #
-    # Process in chunks
-    #
-    chunks = list(batch(thresholds, 1000))
-    for c, chunk in enumerate(chunks):
-        #
-        # Eval chunk and look for new minimum error
-        #
-        errs = [ dask.delayed(eval_intensity)(target,mask,image,t[0],t[1]) for t in chunk ]
-        with ProgressBar(dt=0.5):
-            errs = dask.compute(*errs, scheduler='threads')
-        for err, img, l, u in errs:
-            if err < merr:
-                if qr_validate(data,img=img,qr_size=args.qrver) is not None:
-                    merr = err
-                    ml = l
-                    mu = u
-                    min_img = numpy.copy(img)
-        #
-        # Progress print / update after each chunk is done
-        #
-        print("  Intensity Search: chunk %d of %d"%(c,len(chunks)))
-        print("    min err: %f  (@ %d %d)"%(merr,ml,mu))
-        if gui:
-            pct = (float(c+1)*100.0) / float(len(chunks))
-            msg =  "Intensity Search (%.1f%s)\n\n"%(pct,"%")
-            pct = 100.0 * (merr / numpy.sum(mask))
-            msg += "Error: %.2f %s\n"%(merr,("%0.3f"%(pct))+"%")
-            msg += "Lower: %d\nUpper: %d"%(ml,mu)
-            gui.update(data=min_img,text=msg)
-    #
-    # Intensity search is done
-    #
-    print("  Intensity Search: done.")
-    print("  min err: %f  (@ %d %d)"%(merr,ml,mu))
-    print("")
-    #
-    # Return best found
-    #
-    return min_img
 
 
 ############################################################
@@ -735,7 +639,7 @@ def qrga_init(args):
     print("  Generations: %d"%(args.gens))
     print("  Mutation:    %f  (%.1f px)"%(args.mu,(current.shape[0]*current.shape[1])*args.mu))
     print("  Selection:   %f  (top %.1f)"%(args.sigma,args.popsz*args.sigma))
-    print("  Validations: %d  (distort:%s)"%(args.validate if args.validate else 1, str(args.validate > 0)))
+    print("  Validations: %d"%(args.validate if args.validate else 1))
     print("  Crossover:   %s"%(str(args.crossover)))
     print("")
     #
@@ -763,7 +667,6 @@ def parse_args():
     parser.add_argument('--version',   action='store_true',        help='print version and exit')
     parser.add_argument('--info',      action='store_true',        help='print info and exit')
     parser.add_argument('--gui',       action='store_true',        help='enable GUI')
-    parser.add_argument('--isearch',   default=False,  type=bool,  help='intensity search flag')
     parser.add_argument('--output',    default=None,   type=str,   help='output result image path')
     parser.add_argument('--target',    default=None,   type=str,   help='desired target image path')
     parser.add_argument('--mask',      default=None,   type=str,   help='target mask image path')
@@ -801,12 +704,7 @@ def main():
         min_dat = nonce_search(args,target,mask,gui)
     image = qr_encode(min_dat,qr_size=args.qrver)
     #
-    # Pass 2: intensity search
-    #
-    if args.isearch and not args.resume:
-        image = intensity_search(args,target,mask,image,min_dat,gui)
-    #
-    # Pass 3: genetic algorithm
+    # Pass 2: genetic algorithm
     #
     if args.resume:
         image = read_image(args.resume)
