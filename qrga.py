@@ -38,7 +38,7 @@ from PIL import Image, ImageTk
 ############################################################
 
 
-QRGA_VERSION   = "0.7"
+QRGA_VERSION   = "0.8"
 QRGA_COPYRIGHT = "Copyright (C) 2018 Aaron Vose"
 
 
@@ -84,16 +84,18 @@ def write_distorted_image(img,outf="qrga_tmp.png"):
     ph = int(img.shape[1]/2)
     big = numpy.pad(img,((pw,pw),(ph,ph)),'constant',constant_values=((1,1),(1,1)))
     #
-    # Increase resolution to help with aliasing
+    # Increase resolution to help with aliasing later
     #
-    w = big.shape[0]*3
-    h = big.shape[1]*3
+    w = big.shape[0]*5
+    h = big.shape[1]*5
     big = transform.resize(big, (w,h), anti_aliasing=False, mode='constant')
     #
     # Apply transform(s)
     #
-    magnitude = 0.1 + numpy.random.uniform()*0.2
+    magnitude = 0.1 + numpy.random.uniform()*0.1
     afine_tf = transform.AffineTransform(shear=magnitude)
+    magnitude = -20.0 + 40.0*numpy.random.uniform()
+    big = transform.rotate(big, magnitude, mode='constant', cval=1.0, resize=True)
     big = transform.warp(big, inverse_map=afine_tf, mode='constant', cval=1.0)
     #
     # Write the distorted image
@@ -369,6 +371,12 @@ def ga_search(args,target,mask,founder,data,gui):
         indexes.sort(key=fits.__getitem__)
         fits = list(map(fits.__getitem__, indexes))
         population = list(map(population.__getitem__, indexes))
+        population = population[0:int(args.popsz*args.sigma)]
+        population = [ ind for i,ind in enumerate(population) if fits[i] != WORST_ERROR ]
+        fits = fits[0:len(population)]
+        #
+        # Stats
+        #
         pct = 100.0 * (fits[0] / numpy.sum(mask))
         print("    Fitness: %.1f %s"%(fits[0],("%.4f"%(pct))+"%"))
         best = population[0]
@@ -377,7 +385,6 @@ def ga_search(args,target,mask,founder,data,gui):
             write_image(best,"%s_gen%d.png"%(os.path.splitext(args.target)[0],gen))
             delta = numpy.absolute((target - population[0])*mask)
             write_image(delta,"%s_err.png"%(os.path.splitext(args.target)[0]))
-        population = population[0:int(args.popsz*args.sigma)]
         #
         # Reproduction
         #
@@ -392,7 +399,10 @@ def ga_search(args,target,mask,founder,data,gui):
                 j = numpy.random.randint(0,opop)
                 indj = numpy.copy( population[j] )
                 cmask = numpy.ones_like(ind)
-                cmask[:int(cmask.shape[0]/2)] = 0.0
+                if numpy.random.randint(2) == 1:
+                    cmask[:int(cmask.shape[1]/2)] = 0.0
+                else:
+                    cmask[int(cmask.shape[0]/2):] = 0.0
                 ind = numpy.copy( ind*cmask + indj*(1.0-cmask) )
             #
             # Mutation
@@ -514,7 +524,8 @@ def intensity_search(args,target,mask,image,data,gui):
         if gui:
             pct = (float(c+1)*100.0) / float(len(chunks))
             msg =  "Intensity Search (%.1f%s)\n\n"%(pct,"%")
-            msg += "Error: %f\n"%merr
+            pct = 100.0 * (merr / numpy.sum(mask))
+            msg += "Error: %.2f %s\n"%(merr,("%0.3f"%(pct))+"%")
             msg += "Lower: %d\nUpper: %d"%(ml,mu)
             gui.update(data=min_img,text=msg)
     #
@@ -752,7 +763,7 @@ def parse_args():
     parser.add_argument('--version',   action='store_true',        help='print version and exit')
     parser.add_argument('--info',      action='store_true',        help='print info and exit')
     parser.add_argument('--gui',       action='store_true',        help='enable GUI')
-    parser.add_argument('--isearch',   default=True,   type=bool,  help='intensity search flag')
+    parser.add_argument('--isearch',   default=False,  type=bool,  help='intensity search flag')
     parser.add_argument('--output',    default=None,   type=str,   help='output result image path')
     parser.add_argument('--target',    default=None,   type=str,   help='desired target image path')
     parser.add_argument('--mask',      default=None,   type=str,   help='target mask image path')
@@ -765,7 +776,7 @@ def parse_args():
     parser.add_argument('--mu',        default=0.01,   type=float, help='mutation rate')
     parser.add_argument('--gens',      default=100000, type=int,   help='generations')
     parser.add_argument('--popsz',     default=100,    type=int,   help='population size')
-    parser.add_argument('--validate',  default=3,      type=int,   help='QR validations per ind')
+    parser.add_argument('--validate',  default=2,      type=int,   help='QR validations per ind')
     args = parser.parse_args()
     return args
 
