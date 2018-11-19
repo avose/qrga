@@ -416,7 +416,7 @@ def ga_search(args,target,mask,founder,data,gui):
             deltat = target-ind
             deltat = numpy.clip(deltat,-0.2,0.2)
             deltaf = first-ind
-            deltaf = numpy.clip(deltaf,-0.2,0.2)
+            deltaf = numpy.clip(deltaf,-0.11,0.11)
             ind = mumask*(mus*(ind+deltat) + (1.0-mus)*(ind+deltaf)) + (1.0-mumask)*ind
             ind = numpy.clip(ind,0.0,1.0)
             population.append( ind )
