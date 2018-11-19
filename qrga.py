@@ -390,35 +390,36 @@ def ga_search(args,target,mask,founder,data,gui):
         #
         opop = len(population)
         while len(population) < args.popsz:
-            i = numpy.random.randint(0,opop)
-            ind = numpy.copy( population[i] )
+            #
+            # Create child copy
+            #
+            ind = numpy.copy( population[numpy.random.randint(0,opop)] )
             #
             # Crossover
-            #
+            #            
             if args.crossover:
-                j = numpy.random.randint(0,opop)
-                indj = numpy.copy( population[j] )
-                cmask = numpy.ones_like(ind)
-                if numpy.random.randint(2) == 1:
-                    cmask[:int(cmask.shape[1]/2)] = 0.0
-                else:
-                    cmask[int(cmask.shape[0]/2):] = 0.0
-                ind = numpy.copy( ind*cmask + indj*(1.0-cmask) )
+                indj = numpy.copy( population[numpy.random.randint(0,opop)] )
+                cmask = numpy.random.rand(ind.shape[0], ind.shape[1])
+                cmask = numpy.select( [cmask < 0.5], [ 1.0 ] )
+                ind = ind*cmask + indj*(1.0-cmask)
             #
             # Mutation
             #
-            mus = numpy.random.rand(ind.shape[0],ind.shape[1])
+            mus = numpy.random.rand(ind.shape[0], ind.shape[1])
             mumask = numpy.select( [mus < args.mu], [ 1.0 ] )
             mumask = numpy.select( [mask > 0.0], [ 1.0 ] ) * mumask
-            repair =  2.0*(float(args.popsz)/float(viable))
-            mus = numpy.random.rand(ind.shape[0],ind.shape[1])
+            repair =  args.gamma*(float(args.popsz)/float(viable))
+            mus = numpy.random.rand(ind.shape[0], ind.shape[1])
             mus = numpy.select( [mus < (1.0/repair)], [ 1.0 ] )
             deltat = target-ind
-            deltat = numpy.clip(deltat,-0.2,0.2)
+            deltat = numpy.clip(deltat, -0.2, 0.2)
             deltaf = first-ind
-            deltaf = numpy.clip(deltaf,-0.11,0.11)
+            deltaf = numpy.clip(deltaf, -0.11, 0.11)
             ind = mumask*(mus*(ind+deltat) + (1.0-mus)*(ind+deltaf)) + (1.0-mumask)*ind
-            ind = numpy.clip(ind,0.0,1.0)
+            ind = numpy.clip(ind, 0.0, 1.0)
+            #
+            # Add child to population
+            #
             population.append( ind )
         #
         # End of generation timing and print.
@@ -434,7 +435,7 @@ def ga_search(args,target,mask,founder,data,gui):
             avg = sum(fits) / len(fits)
             apct = 100.0 * (avg / numpy.sum(mask))
             msg += "Avg:  %.2f  %.2f%s\n"%(avg,apct,"%")
-            repair =  2.0*(float(args.popsz)/float(viable))
+            repair = args.gamma*(float(args.popsz)/float(viable))
             msg += "Mu: %.4f\n"%(1.0/repair)
             msg += "Time:  %.2f s\n\n"%(tend-tstart)
             gui.update(data=best,text=msg)
@@ -677,6 +678,7 @@ def parse_args():
     parser.add_argument('--crossover', default=True,   type=bool,  help='crossover flag for GA')
     parser.add_argument('--sigma',     default=0.1,    type=float, help='selection strength')
     parser.add_argument('--mu',        default=1.00,   type=float, help='mutation rate')
+    parser.add_argument('--gamma',     default=1.75,   type=float, help='target attractor strength')
     parser.add_argument('--gens',      default=100000, type=int,   help='generations')
     parser.add_argument('--popsz',     default=100,    type=int,   help='population size')
     parser.add_argument('--validate',  default=2,      type=int,   help='QR validations per ind')
