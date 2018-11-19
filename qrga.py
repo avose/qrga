@@ -391,35 +391,34 @@ def ga_search(args,target,mask,founder,data,gui):
         opop = len(population)
         while len(population) < args.popsz:
             #
-            # Create child copy
-            #
-            ind = numpy.copy( population[numpy.random.randint(0,opop)] )
-            #
             # Crossover
-            #            
-            if args.crossover:
-                indj = numpy.copy( population[numpy.random.randint(0,opop)] )
-                cmask = numpy.random.rand(ind.shape[0], ind.shape[1])
-                cmask = numpy.select( [cmask < 0.5], [ 1.0 ] )
-                ind = ind*cmask + indj*(1.0-cmask)
+            #
+            indi = numpy.copy( population[numpy.random.randint(0,opop)] )
+            indj = numpy.copy( population[numpy.random.randint(0,opop)] )
+            cmask = numpy.random.rand(indi.shape[0], indi.shape[1])
+            cmask = numpy.select( [cmask < 0.5], [ 1.0 ] )
+            indi = indi*cmask + indj*(1.0-cmask)
+            indj = indi*(1.0-cmask) + indj*cmask
+            inds = [ indi, indj ]
             #
             # Mutation
             #
-            mus = numpy.random.rand(ind.shape[0], ind.shape[1])
-            mumask = numpy.select( [mus < args.mu], [ 1.0 ] ) * mask
-            repair =  args.gamma*(float(args.popsz)/float(viable))
-            mus = numpy.random.rand(ind.shape[0], ind.shape[1])
-            dtmask = numpy.select( [mus < (1.0/repair)], [ 1.0 ] )
-            deltat = target-ind
-            deltat = numpy.clip(deltat, -0.2, 0.2)
-            deltaf = first-ind
-            deltaf = numpy.clip(deltaf, -0.11, 0.11)
-            ind = mumask*(dtmask*(ind+deltat) + (1.0-dtmask)*(ind+deltaf)) + (1.0-mumask)*ind
-            ind = numpy.clip(ind, 0.0, 1.0)
-            #
-            # Add child to population
-            #
-            population.append( ind )
+            for ind in inds:
+                mus = numpy.random.rand(ind.shape[0], ind.shape[1])
+                mumask = numpy.select( [mus < args.mu], [ 1.0 ] ) * mask
+                repair =  args.gamma*(float(args.popsz)/float(viable))
+                mus = numpy.random.rand(ind.shape[0], ind.shape[1])
+                dtmask = numpy.select( [mus < (1.0/repair)], [ 1.0 ] )
+                deltat = target-ind
+                deltat = numpy.clip(deltat, -0.2, 0.2)
+                deltaf = first-ind
+                deltaf = numpy.clip(deltaf, -0.11, 0.11)
+                ind = mumask*(dtmask*(ind+deltat) + (1.0-dtmask)*(ind+deltaf)) + (1.0-mumask)*ind
+                ind = numpy.clip(ind, 0.0, 1.0)
+                #
+                # Add child to population
+                #
+                population.append( ind )
         #
         # End of generation timing and print.
         #
@@ -640,7 +639,6 @@ def qrga_init(args):
     print("  Mutation:    %f  (%.1f px)"%(args.mu,(current.shape[0]*current.shape[1])*args.mu))
     print("  Selection:   %f  (top %.1f)"%(args.sigma,args.popsz*args.sigma))
     print("  Validations: %d"%(args.validate if args.validate else 1))
-    print("  Crossover:   %s"%(str(args.crossover)))
     print("")
     #
     # Generate a best-case image
@@ -674,7 +672,6 @@ def parse_args():
     parser.add_argument('--resume',    default=None,   type=str,   help='resume GA with founder')
     parser.add_argument('--qrver',     default=10,     type=int,   help='QR code version (size)')
     parser.add_argument('--nsearch',   default=20000,  type=int,   help='nonce search iterations')    
-    parser.add_argument('--crossover', default=True,   type=bool,  help='crossover flag for GA')
     parser.add_argument('--sigma',     default=0.1,    type=float, help='selection strength')
     parser.add_argument('--mu',        default=1.00,   type=float, help='mutation rate')
     parser.add_argument('--gamma',     default=1.75,   type=float, help='target attractor strength')
