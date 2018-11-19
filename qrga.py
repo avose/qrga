@@ -32,13 +32,17 @@ from dask.diagnostics import ProgressBar
 import threading
 import tkinter
 from PIL import Image, ImageTk
+import matplotlib
+matplotlib.use("TkAgg")
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
 
 
 ############################################################
 ############################################################
 
 
-QRGA_VERSION   = "0.9"
+QRGA_VERSION   = "0.10"
 QRGA_COPYRIGHT = "Copyright (C) 2018 Aaron Vose"
 
 
@@ -250,6 +254,7 @@ def nonce_search(args,target,mask,gui):
     batchsz = 100
     nbatch  = int(args.nsearch / batchsz)
     current = None
+    gdata = [ [], [] ]
     for i in range(0,nbatch):
         #
         # Eval a batch of nonces
@@ -300,7 +305,9 @@ def nonce_search(args,target,mask,gui):
             msg += "Avg:  %.4f\n"%(sum_err/float((i+1)*batchsz))
             msg += "Time:  %.4f s / nonce\n"%((tend-tstart)/float(batchsz))
             best = target*mask + (current*(1.0-mask))
-            gui.update(data=current,best=best,text=msg)
+            gdata[0].append( i+1 )
+            gdata[1].append( min_err )
+            gui.update(data=current,best=best,text=msg,gdata=gdata)
         #
         # Return best
         #
@@ -343,6 +350,7 @@ def ga_search(args,target,mask,founder,data,gui):
     # Generation loop
     #
     best = population[0]
+    gdata = [ [], [] ]
     if gui:
         gui.update(data=best)
     for gen in range(0,args.gens):
@@ -436,7 +444,9 @@ def ga_search(args,target,mask,founder,data,gui):
             repair = args.gamma*(float(args.popsz)/float(viable))
             msg += "Mu: %.4f\n"%(1.0/repair)
             msg += "Time:  %.2f s\n\n"%(tend-tstart)
-            gui.update(data=best,text=msg)
+            gdata[0].append( gen )
+            gdata[1].append( fits[0] )
+            gui.update(data=best,text=msg,gdata=gdata)
     #
     # Return best found
     #
@@ -482,6 +492,32 @@ class gui_window():
         green = "#00FF00"
         textx = self.data.shape[0]+3 + self.best.shape[0]+2
         self.ctext = self.canvas.create_text(textx,2,text=self.text,fill=green,anchor=tkinter.NW,justify=tkinter.LEFT)
+        #
+        # Add plot
+        #
+        self.figure = Figure(figsize=(3,2), dpi=100, facecolor='black')
+        self.axis = self.figure.add_subplot(111, xlabel='Generation', facecolor='black', frameon=False)
+        self.axis.spines['bottom'].set_color('white')
+        self.axis.spines['left'].set_color('white')
+        self.axis.yaxis.label.set_color('white')
+        self.axis.xaxis.label.set_color('white')
+        self.axis.tick_params(axis='x', colors='white')
+        self.axis.tick_params(axis='y', colors='white')
+        self.axis.tick_params(axis='both', direction='in')
+        self.axis.get_xaxis().tick_bottom()
+        self.axis.get_yaxis().tick_left()
+        self.axis.set_xlabel('Generation')
+        self.axis.set_ylabel('Best Error')
+        self.axis.set_title('Search History')
+        self.axis.title.set_color('white')
+        self.gdata = numpy.copy( [[],[]] )
+        self.axis.plot(self.gdata[0], self.gdata[1], color='green')
+        self.fig_canvas = FigureCanvasTkAgg(self.figure, master=self.root)
+        self.fig_canvas.draw()
+        self.fig_canvas.get_tk_widget().pack(side=tkinter.BOTTOM, fill=tkinter.BOTH, expand=True)
+        #
+        # Finalize
+        #
         self.root.update()
         self.canvas.after(int(UPDATE_DELAY*1000),self.redraw)
 
@@ -493,6 +529,7 @@ class gui_window():
         data = numpy.copy(self.data)
         best = numpy.copy(self.best)
         text = str(self.text)
+        gdta = numpy.copy(self.gdata)
         self.lock.release()
         #
         # Update GUI
@@ -504,6 +541,13 @@ class gui_window():
         self.bphoto = ImageTk.PhotoImage(image=self.bim)
         self.canvas.itemconfig(self.bimage, image=self.bphoto)
         self.canvas.itemconfig(self.ctext, text=text)
+        self.axis.clear()
+        self.axis.set_xlabel('Generation')
+        self.axis.set_ylabel('Best Error')
+        self.axis.set_title('Search History')
+        self.axis.title.set_color('white')
+        self.axis.plot(gdta[0], gdta[1], color='green')
+        self.fig_canvas.draw()
         self.root.update()
         #
         # Setup another update tick
@@ -539,7 +583,7 @@ class gui_thread(threading.Thread):
         print("\n\nGUI closed: exiting.\n")
         os._exit(0)
 
-    def update(self,data=None,text=None,best=None):
+    def update(self,data=None,text=None,best=None,gdata=None):
         #
         # Lock and update data
         #
@@ -553,6 +597,9 @@ class gui_thread(threading.Thread):
         if best is not None:
             self.best = numpy.copy(best*255.0)
             self.win.best = self.best
+        if gdata is not None:
+            self.gdata = numpy.copy( gdata )
+            self.win.gdata = self.gdata
         self.lock.release()
 
     def wait_init(self):
