@@ -470,6 +470,7 @@ class gui_window():
         # Setup window and canvas
         #
         self.root = tkinter.Tk()
+        self.root.resizable(False, False)
         self.root.title("QRGA v%s"%(QRGA_VERSION))
         self.cwidth  = self.data.shape[0]*3+5
         self.cheight = self.data.shape[1]+3
