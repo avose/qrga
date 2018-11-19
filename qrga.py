@@ -38,7 +38,7 @@ from PIL import Image, ImageTk
 ############################################################
 
 
-QRGA_VERSION   = "0.8"
+QRGA_VERSION   = "0.9"
 QRGA_COPYRIGHT = "Copyright (C) 2018 Aaron Vose"
 
 
@@ -406,16 +406,15 @@ def ga_search(args,target,mask,founder,data,gui):
             # Mutation
             #
             mus = numpy.random.rand(ind.shape[0], ind.shape[1])
-            mumask = numpy.select( [mus < args.mu], [ 1.0 ] )
-            mumask = numpy.select( [mask > 0.0], [ 1.0 ] ) * mumask
+            mumask = numpy.select( [mus < args.mu], [ 1.0 ] ) * mask
             repair =  args.gamma*(float(args.popsz)/float(viable))
             mus = numpy.random.rand(ind.shape[0], ind.shape[1])
-            mus = numpy.select( [mus < (1.0/repair)], [ 1.0 ] )
+            dtmask = numpy.select( [mus < (1.0/repair)], [ 1.0 ] )
             deltat = target-ind
             deltat = numpy.clip(deltat, -0.2, 0.2)
             deltaf = first-ind
             deltaf = numpy.clip(deltaf, -0.11, 0.11)
-            ind = mumask*(mus*(ind+deltat) + (1.0-mus)*(ind+deltaf)) + (1.0-mumask)*ind
+            ind = mumask*(dtmask*(ind+deltat) + (1.0-dtmask)*(ind+deltaf)) + (1.0-mumask)*ind
             ind = numpy.clip(ind, 0.0, 1.0)
             #
             # Add child to population
@@ -679,7 +678,7 @@ def parse_args():
     parser.add_argument('--sigma',     default=0.1,    type=float, help='selection strength')
     parser.add_argument('--mu',        default=1.00,   type=float, help='mutation rate')
     parser.add_argument('--gamma',     default=1.75,   type=float, help='target attractor strength')
-    parser.add_argument('--gens',      default=100000, type=int,   help='generations')
+    parser.add_argument('--gens',      default=1000,   type=int,   help='generations')
     parser.add_argument('--popsz',     default=100,    type=int,   help='population size')
     parser.add_argument('--validate',  default=2,      type=int,   help='QR validations per ind')
     args = parser.parse_args()
