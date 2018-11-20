@@ -242,19 +242,19 @@ def eval_nonce(data,target,mask,qr_size):
 ########################################
 
 
-def nonce_search(args,target,mask,gui,gdata):
+def nonce_search(args,target,mask,gui,search_hist):
     print("Start nonce search (%d):"%args.nsearch)
     if gui:
         msg = "Nonce Search (%.1f%s)\n\n"%(0.0,"%")
         gui.update(text=msg)
     min_dat = args.data
-    min_err = WORST_ERROR
-    max_err = 0.0
-    sum_err = 0.0
+    current = qr_encode(min_dat,qr_size=args.qrver)
+    min_err = qr_diff(target, mask, current)
+    max_err = min_err
+    sum_err = min_err
     batchsz = 100
     nbatch  = int(args.nsearch / batchsz)
-    current = None
-    gdata = [ [], [] ] if gdata is None else gdata
+    search_hist = [ [], [] ] if search_hist is None else search_hist
     for i in range(0,nbatch):
         #
         # Eval a batch of nonces
@@ -305,13 +305,13 @@ def nonce_search(args,target,mask,gui,gdata):
             msg += "Avg:  %.4f\n"%(sum_err/float((i+1)*batchsz))
             msg += "Time:  %.4f s / nonce\n"%((tend-tstart)/float(batchsz))
             best = target*mask + (current*(1.0-mask))
-            gdata[0].append( time.time() )
-            gdata[1].append( min_err )
-            gui.update(data=current,best=best,text=msg,gdata=gdata)
+            search_hist[0].append( time.time() )
+            search_hist[1].append( min_err )
+            gui.update(data=current,best=best,text=msg,search_hist=search_hist)
         #
         # Return best
         #
-    return min_dat,gdata
+    return min_dat,search_hist
 
 
 ############################################################
@@ -337,7 +337,7 @@ def eval_ind(ind,data,target,mask,qr_size,nvalidation):
 ########################################
 
 
-def ga_search(args,target,mask,founder,data,gui,gdata):
+def ga_search(args,target,mask,founder,data,gui,search_hist):
     print("Start genetic algorithm search (%d):"%args.gens)
     if gui:
         gui.update(text="Genetic Algorithm Search")
@@ -350,7 +350,7 @@ def ga_search(args,target,mask,founder,data,gui,gdata):
     # Generation loop
     #
     best = population[0]
-    gdata = [ [], [] ] if gdata is None else gdata
+    search_hist = [ [], [] ] if search_hist is None else search_hist
     if gui:
         gui.update(data=best)
     for gen in range(0,args.gens):
@@ -446,9 +446,9 @@ def ga_search(args,target,mask,founder,data,gui,gdata):
             repair = args.gamma * (repair*repair)
             msg += "Mu: %.4f\n"%(1.0/repair)
             msg += "Time:  %.2f s\n\n"%(tend-tstart)
-            gdata[0].append( time.time() )
-            gdata[1].append( fits[0] )
-            gui.update(data=best,text=msg,gdata=gdata)
+            search_hist[0].append( time.time() )
+            search_hist[1].append( fits[0] )
+            gui.update(data=best,text=msg,search_hist=search_hist)
     #
     # Return best found
     #
@@ -513,8 +513,8 @@ class gui_window():
         self.axis.set_ylabel('Best Error')
         self.axis.set_title('Search History')
         self.axis.title.set_color('white')
-        self.gdata = numpy.copy( [[],[]] )
-        self.axis.plot(self.gdata[0], self.gdata[1], color='green')
+        self.search_hist = numpy.copy( [[],[]] )
+        self.axis.plot(self.search_hist[0], self.search_hist[1], color='green')
         self.fig_canvas = FigureCanvasTkAgg(self.figure, master=self.root)
         self.fig_canvas.draw()
         self.fig_canvas.get_tk_widget().pack(side=tkinter.BOTTOM, fill=tkinter.BOTH, expand=True)
@@ -532,7 +532,7 @@ class gui_window():
         data = numpy.copy(self.data)
         best = numpy.copy(self.best)
         text = str(self.text)
-        gdta = numpy.copy(self.gdata)
+        gdta = numpy.copy(self.search_hist)
         self.lock.release()
         #
         # Update GUI
@@ -586,7 +586,7 @@ class gui_thread(threading.Thread):
         print("\n\nGUI closed: exiting.\n")
         os._exit(0)
 
-    def update(self,data=None,text=None,best=None,gdata=None):
+    def update(self,data=None,text=None,best=None,search_hist=None):
         #
         # Lock and update data
         #
@@ -600,9 +600,9 @@ class gui_thread(threading.Thread):
         if best is not None:
             self.best = numpy.copy(best*255.0)
             self.win.best = self.best
-        if gdata is not None:
-            self.gdata = numpy.copy( [gdata[0]-numpy.min(gdata[0]), gdata[1]] )
-            self.win.gdata = self.gdata
+        if search_hist is not None:
+            self.search_hist = numpy.copy( [search_hist[0]-numpy.min(search_hist[0]), search_hist[1]] )
+            self.win.search_hist = self.search_hist
         self.lock.release()
 
     def wait_init(self):
@@ -681,7 +681,7 @@ def qrga_init(args):
         mask = read_image(args.mask)
     err = qr_diff(target, mask, current)
     pct = 100.0 * (err / numpy.sum(mask))
-    gdata = [ [time.time()], [err] ]
+    search_hist = [ [time.time()], [err] ]
     print("  Initial error: %0.1f %s"%(err,("%0.4lf"%(pct))+"%"))
     print("")
     print("Genetic algorithm settings:")
@@ -703,7 +703,7 @@ def qrga_init(args):
     #
     # Return the target image
     #
-    return target, mask, gui, gdata
+    return target, mask, gui, search_hist
 
 
 ########################################
@@ -741,7 +741,7 @@ def main():
     # Pass 0: Parse command line and init
     #
     args = parse_args()
-    target, mask, gui, gdata = qrga_init(args)
+    target, mask, gui, search_hist = qrga_init(args)
     #
     # Pass 1: padding / nonce search for data
     #
@@ -749,9 +749,9 @@ def main():
         min_dat = qr_decode(inf=args.resume)
         print("Resume with data from QR: '%s'"%min_dat)
         print("")
-        gdata = None
+        search_hist = None
     else:
-        min_dat,gdata = nonce_search(args,target,mask,gui,gdata)
+        min_dat,search_hist = nonce_search(args,target,mask,gui,search_hist)
     image = qr_encode(min_dat,qr_size=args.qrver)
     #
     # Pass 2: genetic algorithm
@@ -763,7 +763,7 @@ def main():
     write_image(best,"%s_best.png"%(os.path.splitext(args.target)[0]))
     if gui:
         gui.update(best=best)
-    ga_best = ga_search(args,target,mask,image,min_dat,gui,gdata)
+    ga_best = ga_search(args,target,mask,image,min_dat,gui,search_hist)
     
     
 ########################################
