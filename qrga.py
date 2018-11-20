@@ -306,7 +306,7 @@ def nonce_search(args,target,mask,gui,search_hist):
             msg += "Time:  %.4f s / nonce\n"%((tend-tstart)/float(batchsz))
             best = target*mask + (current*(1.0-mask))
             search_hist[0].append( time.time() )
-            search_hist[1].append( min_err )
+            search_hist[1].append( pct )
             gui.update(data=current,best=best,text=msg,search_hist=search_hist)
         #
         # Return best
@@ -447,7 +447,7 @@ def ga_search(args,target,mask,founder,data,gui,search_hist):
             msg += "Mu: %.4f\n"%(1.0/repair)
             msg += "Time:  %.2f s\n\n"%(tend-tstart)
             search_hist[0].append( time.time() )
-            search_hist[1].append( fits[0] )
+            search_hist[1].append( pct )
             gui.update(data=best,text=msg,search_hist=search_hist)
     #
     # Return best found
@@ -509,8 +509,8 @@ class gui_window():
         self.axis.tick_params(axis='both', direction='in')
         self.axis.get_xaxis().tick_bottom()
         self.axis.get_yaxis().tick_left()
-        self.axis.set_xlabel('Generation')
-        self.axis.set_ylabel('Best Error')
+        self.axis.set_xlabel('Search Time')
+        self.axis.set_ylabel('Best Error (%)')
         self.axis.set_title('Search History')
         self.axis.title.set_color('white')
         self.search_hist = numpy.copy( [[],[]] )
@@ -545,8 +545,8 @@ class gui_window():
         self.canvas.itemconfig(self.bimage, image=self.bphoto)
         self.canvas.itemconfig(self.ctext, text=text)
         self.axis.clear()
-        self.axis.set_xlabel('Generation')
-        self.axis.set_ylabel('Best Error')
+        self.axis.set_xlabel('Search Time')
+        self.axis.set_ylabel('Best Error (%)')
         self.axis.set_title('Search History')
         self.axis.title.set_color('white')
         self.axis.plot(gdta[0], gdta[1], color='green')
@@ -681,7 +681,7 @@ def qrga_init(args):
         mask = read_image(args.mask)
     err = qr_diff(target, mask, current)
     pct = 100.0 * (err / numpy.sum(mask))
-    search_hist = [ [time.time()], [err] ]
+    search_hist = [ [time.time()], [pct] ]
     print("  Initial error: %0.1f %s"%(err,("%0.4lf"%(pct))+"%"))
     print("")
     print("Genetic algorithm settings:")
