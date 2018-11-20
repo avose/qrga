@@ -242,7 +242,7 @@ def eval_nonce(data,target,mask,qr_size):
 ########################################
 
 
-def nonce_search(args,target,mask,gui):
+def nonce_search(args,target,mask,gui,gdata):
     print("Start nonce search (%d):"%args.nsearch)
     if gui:
         msg = "Nonce Search (%.1f%s)\n\n"%(0.0,"%")
@@ -254,7 +254,7 @@ def nonce_search(args,target,mask,gui):
     batchsz = 100
     nbatch  = int(args.nsearch / batchsz)
     current = None
-    gdata = [ [], [] ]
+    gdata = [ [], [] ] if gdata is None else gdata
     for i in range(0,nbatch):
         #
         # Eval a batch of nonces
@@ -305,13 +305,13 @@ def nonce_search(args,target,mask,gui):
             msg += "Avg:  %.4f\n"%(sum_err/float((i+1)*batchsz))
             msg += "Time:  %.4f s / nonce\n"%((tend-tstart)/float(batchsz))
             best = target*mask + (current*(1.0-mask))
-            gdata[0].append( i+1 )
+            gdata[0].append( time.time() )
             gdata[1].append( min_err )
             gui.update(data=current,best=best,text=msg,gdata=gdata)
         #
         # Return best
         #
-    return min_dat
+    return min_dat,gdata
 
 
 ############################################################
@@ -337,7 +337,7 @@ def eval_ind(ind,data,target,mask,qr_size,nvalidation):
 ########################################
 
 
-def ga_search(args,target,mask,founder,data,gui):
+def ga_search(args,target,mask,founder,data,gui,gdata):
     print("Start genetic algorithm search (%d):"%args.gens)
     if gui:
         gui.update(text="Genetic Algorithm Search")
@@ -350,7 +350,7 @@ def ga_search(args,target,mask,founder,data,gui):
     # Generation loop
     #
     best = population[0]
-    gdata = [ [], [] ]
+    gdata = [ [], [] ] if gdata is None else gdata
     if gui:
         gui.update(data=best)
     for gen in range(0,args.gens):
@@ -414,13 +414,14 @@ def ga_search(args,target,mask,founder,data,gui):
             for ind in inds:
                 mus = numpy.random.rand(ind.shape[0], ind.shape[1])
                 mumask = numpy.select( [mus < args.mu], [ 1.0 ] ) * mask
-                repair =  args.gamma*(float(args.popsz)/float(viable))
+                repair = float(args.popsz) / float(viable)
+                repair = args.gamma * (repair*repair)
                 mus = numpy.random.rand(ind.shape[0], ind.shape[1])
                 dtmask = numpy.select( [mus < (1.0/repair)], [ 1.0 ] )
                 deltat = target-ind
-                deltat = numpy.clip(deltat, -0.2, 0.2)
+                deltat = numpy.clip(deltat, -0.2*(1.0/repair), 0.2*(1.0/repair))
                 deltaf = first-ind
-                deltaf = numpy.clip(deltaf, -0.11, 0.11)
+                deltaf = numpy.clip(deltaf, -0.11*(1.0/repair), 0.11*(1.0/repair))
                 ind = mumask*(dtmask*(ind+deltat) + (1.0-dtmask)*(ind+deltaf)) + (1.0-mumask)*ind
                 ind = numpy.clip(ind, 0.0, 1.0)
                 #
@@ -441,10 +442,11 @@ def ga_search(args,target,mask,founder,data,gui):
             avg = sum(fits) / len(fits)
             apct = 100.0 * (avg / numpy.sum(mask))
             msg += "Avg:  %.2f  %.2f%s\n"%(avg,apct,"%")
-            repair = args.gamma*(float(args.popsz)/float(viable))
+            repair = float(args.popsz) / float(viable)
+            repair = args.gamma * (repair*repair)
             msg += "Mu: %.4f\n"%(1.0/repair)
             msg += "Time:  %.2f s\n\n"%(tend-tstart)
-            gdata[0].append( gen )
+            gdata[0].append( time.time() )
             gdata[1].append( fits[0] )
             gui.update(data=best,text=msg,gdata=gdata)
     #
@@ -599,7 +601,7 @@ class gui_thread(threading.Thread):
             self.best = numpy.copy(best*255.0)
             self.win.best = self.best
         if gdata is not None:
-            self.gdata = numpy.copy( gdata )
+            self.gdata = numpy.copy( [gdata[0]-numpy.min(gdata[0]), gdata[1]] )
             self.win.gdata = self.gdata
         self.lock.release()
 
@@ -679,6 +681,7 @@ def qrga_init(args):
         mask = read_image(args.mask)
     err = qr_diff(target, mask, current)
     pct = 100.0 * (err / numpy.sum(mask))
+    gdata = [ [time.time()], [err] ]
     print("  Initial error: %0.1f %s"%(err,("%0.4lf"%(pct))+"%"))
     print("")
     print("Genetic algorithm settings:")
@@ -700,7 +703,7 @@ def qrga_init(args):
     #
     # Return the target image
     #
-    return target, mask, gui
+    return target, mask, gui, gdata
 
 
 ########################################
@@ -738,7 +741,7 @@ def main():
     # Pass 0: Parse command line and init
     #
     args = parse_args()
-    target, mask, gui = qrga_init(args)
+    target, mask, gui, gdata = qrga_init(args)
     #
     # Pass 1: padding / nonce search for data
     #
@@ -746,8 +749,9 @@ def main():
         min_dat = qr_decode(inf=args.resume)
         print("Resume with data from QR: '%s'"%min_dat)
         print("")
+        gdata = None
     else:
-        min_dat = nonce_search(args,target,mask,gui)
+        min_dat,gdata = nonce_search(args,target,mask,gui,gdata)
     image = qr_encode(min_dat,qr_size=args.qrver)
     #
     # Pass 2: genetic algorithm
@@ -759,7 +763,7 @@ def main():
     write_image(best,"%s_best.png"%(os.path.splitext(args.target)[0]))
     if gui:
         gui.update(best=best)
-    ga_best = ga_search(args,target,mask,image,min_dat,gui)
+    ga_best = ga_search(args,target,mask,image,min_dat,gui,gdata)
     
     
 ########################################
