@@ -363,6 +363,7 @@ def ga_search(args,target,mask,founder,data,gui,search_hist):
         #
         # Compute fitness for population members
         #
+        std = numpy.average(numpy.std(numpy.copy(population),axis=0))
         fits = [ dask.delayed(eval_ind)(i,data,target,mask,args.qrver,args.validate) for i in population ]
         with ProgressBar(dt=0.5):
             fits = dask.compute(*fits, scheduler='threads')
@@ -443,6 +444,7 @@ def ga_search(args,target,mask,founder,data,gui,search_hist):
             avg = sum(fits) / len(fits)
             apct = 100.0 * (avg / numpy.sum(mask))
             msg += "Avg:  %.2f  %.2f%s\n"%(avg,apct,"%")
+            msg += "Std:  %.4f\n"%(std)
             repair = float(args.popsz) / float(viable)
             repair = args.gamma * (repair*repair)
             msg += "Mu: %.4f\n"%(1.0/repair)
