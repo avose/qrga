@@ -397,6 +397,7 @@ def ga_search(args,target,mask,founder,data,gui,search_hist):
         # Reproduction
         #
         opop = len(population)
+        population.append( numpy.copy(population[0]) )
         while len(population) < args.popsz:
             #
             # Crossover
