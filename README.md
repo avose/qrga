@@ -14,6 +14,10 @@ This project uses genetic algorithms to create QR codes which look like desired 
 ![Mask](examples/ornament-mask.png?raw=true "Target Mask")
 ![Output](examples/ornament-qr.png?raw=true "Output Image")
 
+![Target](examples/unicorn.png?raw=true "Target Image")
+![Mask](examples/unicorn-mask.png?raw=true "Target Mask")
+![Output](examples/unicorn-qr.png?raw=true "Output Image")
+
 ## Prerequisites
 
 This project uses the `zbarimg` and `qrencode` tools (i.e., the `zbar-tools` and `qrencode` packages in Ubuntu).  Additionally, the following are imported by the Python3 script:
