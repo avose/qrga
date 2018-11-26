@@ -22,6 +22,10 @@ This project uses genetic algorithms to create QR codes which look like desired 
 ![Mask](examples/ctree-mask.png?raw=true "Target Mask")
 ![Output](examples/ctree-qr.png?raw=true "Output Image")
 
+![Target](examples/octopus.png?raw=true "Target Image")
+![Mask](examples/octopus-mask.png?raw=true "Target Mask")
+![Output](examples/octopus-qr.png?raw=true "Output Image")
+
 ## Prerequisites
 
 This project uses the `zbarimg` and `qrencode` tools (i.e., the `zbar-tools` and `qrencode` packages in Ubuntu).  Additionally, the following are imported by the Python3 script:
@@ -52,7 +56,7 @@ pip install argparse imageio numpy dask distributed psutil scikit-image tkinter
 Example runline:
 
 ```
-python qrga.py --target crow.png --mask crow-mask.png --output crow-qr.png --data 'http://www.aaronvose.net' --validate 2 --gui
+python qrga.py --target crow.png --mask crow-mask.png --output crow-qr.png --data 'http://www.aaronvose.net' --gui
 ```
 
 ## Authors
