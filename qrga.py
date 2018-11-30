@@ -92,7 +92,7 @@ def write_distorted_image(img,outf="qrga_tmp.png"):
     #
     w = big.shape[0]*4
     h = big.shape[1]*4
-    big = transform.resize(big, (w,h), anti_aliasing=False, mode='constant')
+    big = transform.resize(big, (w,h), mode='constant')
     #
     # Apply transform(s)
     #
@@ -171,9 +171,9 @@ def qr_diff(target,mask,current):
     #
     w = int(target.shape[0]/2)
     h = int(target.shape[1]/2)
-    s_target  = transform.resize(target,  (w,h), anti_aliasing=True, mode='constant')
-    s_mask    = transform.resize(mask,    (w,h), anti_aliasing=True, mode='constant')
-    s_current = transform.resize(current, (w,h), anti_aliasing=True, mode='constant')
+    s_target  = transform.resize(target,  (w,h), mode='constant')
+    s_mask    = transform.resize(mask,    (w,h), mode='constant')
+    s_current = transform.resize(current, (w,h), mode='constant')
     s_delta = numpy.absolute(s_target - s_current)
     s_delta = s_delta * s_mask
     s_err = numpy.sum( s_delta )
