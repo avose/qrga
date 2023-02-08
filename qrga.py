@@ -42,8 +42,8 @@ from matplotlib.figure import Figure
 ############################################################
 
 
-QRGA_VERSION   = "0.10"
-QRGA_COPYRIGHT = "Copyright (C) 2018 Aaron Vose"
+QRGA_VERSION   = "0.11"
+QRGA_COPYRIGHT = "Copyright (C) 2022 Aaron Vose"
 
 
 ########################################
@@ -63,6 +63,10 @@ def read_image(inf="qrga_tmp.png"):
         warnings.simplefilter("ignore")
         img = imageio.imread(inf)
     img = img.astype(float)
+    if len(img.shape) == 3:
+        if img.shape[2] == 4:
+            img = img[:,:,:3]
+        img = numpy.mean(img, -1)
     img = img / 255.0
     return img
 
@@ -252,7 +256,7 @@ def nonce_search(args,target,mask,gui,search_hist):
     min_err = qr_diff(target, mask, current)
     max_err = min_err
     sum_err = min_err
-    batchsz = 100
+    batchsz = 1000
     nbatch  = int(args.nsearch / batchsz)
     search_hist = [ [], [] ] if search_hist is None else search_hist
     for i in range(0,nbatch):
@@ -372,7 +376,7 @@ def ga_search(args,target,mask,founder,data,gui,search_hist):
         #        
         # Viability selection
         #
-        if viable is 0:
+        if viable == 0:
             print("    Population went extinct!")
             break
         print("    nViable: %d"%viable)
@@ -486,10 +490,10 @@ class gui_window():
         #
         # Add images
         #
-        self.im = Image.frombytes('L',(self.data.shape[1],self.data.shape[0]),self.data.astype('b').tostring())
+        self.im = Image.frombytes('L',(self.data.shape[1],self.data.shape[0]),self.data.astype('b').tobytes())
         self.photo = ImageTk.PhotoImage(image=self.im)
         self.image  = self.canvas.create_image(2,2,image=self.photo,anchor=tkinter.NW)
-        self.bim = Image.frombytes('L',(self.best.shape[1],self.best.shape[0]),self.best.astype('b').tostring())
+        self.bim = Image.frombytes('L',(self.best.shape[1],self.best.shape[0]),self.best.astype('b').tobytes())
         self.bphoto = ImageTk.PhotoImage(image=self.bim)
         self.bimage = self.canvas.create_image(self.data.shape[0]+3,2,image=self.bphoto,anchor=tkinter.NW)
         #
@@ -713,7 +717,8 @@ def qrga_init(args):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='QRGA'+' v'+QRGA_VERSION+' '+QRGA_COPYRIGHT)
+    parser = argparse.ArgumentParser(description='QRGA'+' v'+QRGA_VERSION+' '+QRGA_COPYRIGHT,
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--verbose',   action='store_true',        help='verbose flag')
     parser.add_argument('--save',      action='store_true',        help='save intermidiates')
     parser.add_argument('--version',   action='store_true',        help='print version and exit')
